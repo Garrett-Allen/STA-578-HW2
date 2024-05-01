@@ -5,8 +5,6 @@ format: pdf
 editor: visual
 ---
 
-
-
 ```{r}
 #| label: read-data
 library(tidyverse)
@@ -280,34 +278,244 @@ match_res1 <- optmatch_caliper(filtered_data,
 df_treated<-match_res1$datatemp[match_res1$treated.subject.index,]
 df_control<-match_res1$datatemp[match_res1$matched.control.subject.index,]
 df_matched<-rbind(df_treated,df_control)
-tbl1<-CreateTableOne(vars=names(filtered_data)[-c(1:2)],strata="physically.inactive",data=df_matched)
 
+
+```
+
+```{r}
+#| label: print-tbl-one
 # Table One
-print(match_res1$tb1,showAllLevels = TRUE,smd=FALSE,quote=FALSE, noSpaces = TRUE, printToggle = FALSE)
+
+library(kableExtra)
+tbl1 <- CreateTableOne(vars=names(filtered_data)[-c(1:2)],strata="physically.inactive",data=df_matched)
+
+print(tbl1,showAllLevels = TRUE,smd=FALSE,quote=FALSE, noSpaces = TRUE, printToggle = TRUE) %>% 
+  as.data.frame() %>% 
+  filter(p != "") %>% 
+  rownames_to_column() %>% 
+  filter(rowname %in% c("sex....", "age.at.interview..mean..SD..","smoking.status....")) %>% 
+  mutate(rowname = c("sex","smoking","age_at_interview")) %>% 
+  dplyr::select(rowname, level, "FALSE", "TRUE", p)
+```
+
+```{r}
+#| label: love-plot
 
 # Love plot
 match_res1$p +theme_bw() + labs(x = "Standardized Differences in Means",
-                                shape = "Type")
+                                shape = "Type",
+                                title = "Balance appears to be good, differences in acceptable range")
 ```
+
+```{r}
+#| label: standardized_differences
+standardized_differences <- match_res1$res.stand.diff %>% 
+  data.frame()
+
+standardized_differences
+```
+
+Balance appears good, as all the standardized differences are very small after matching relative to their standardized differences before, indicating that we have matched well on each of our covariates.
 
 #4
 
 ```{r}
+#| label: matching-two
+
+match_res2 <- optmatch_caliper(filtered_data,
+                             nocontrols.per.match = 2, 
+                             calipersd=0.5,
+                             ps.formula=ps.formula,
+                             mahal.formula=mahal.formula)
+```
+
+```{r}
+#| label: std_differences-two
+standardized_differences_2 <- match_res2$res.stand.diff %>% 
+  data.frame()
+
+standardized_differences_2
+```
+
+```{r}
+#| label: love-plot-two
+
+# Love plot
+match_res2$p +theme_bw() + labs(x = "Standardized Differences in Means",
+                                shape = "Type",
+                                title = "Balance appears to be good, differences in acceptable range")
+```
+```{r}
+#| label: print-tbl-two
+df_treated_2<-match_res2$datatemp[match_res2$treated.subject.index,]
+df_control_2<-match_res2$datatemp[match_res2$matched.control.subject.index,]
+df_matched_2<-rbind(df_treated_2,df_control_2)
+
+tbl2 <- CreateTableOne(vars=names(filtered_data)[-c(1:2)],strata="physically.inactive",data=df_matched_2)
+
+print(tbl2,showAllLevels = TRUE,smd=FALSE,quote=FALSE, noSpaces = TRUE, printToggle = TRUE) %>% 
+  as.data.frame() %>% 
+  filter(p != "") %>% 
+  rownames_to_column() %>% 
+  filter(rowname %in% c("sex....", "age.at.interview..mean..SD..","smoking.status....")) %>% 
+  mutate(rowname = c("sex","smoking","age_at_interview")) %>% 
+  dplyr::select(rowname, level, "FALSE", "TRUE", p)
 
 ```
+Balance still appears to be good, all of the standardized differences are within an acceptable range (less than .1 in magnitude), but they are worse than in the single matching case. Let's try matching on 3 controls to see how well that does.
+
+```{r}
+#| label: matching-two
+
+match_res3 <- optmatch_caliper(filtered_data,
+                             nocontrols.per.match = 3, 
+                             calipersd=0.5,
+                             ps.formula=ps.formula,
+                             mahal.formula=mahal.formula)
+```
+
+```{r}
+#| label: std_differences-three
+standardized_differences_3 <- match_res3$res.stand.diff %>% 
+  data.frame()
+
+standardized_differences_3
+```
+
+```{r}
+#| label: love-plot-three
+
+# Love plot
+match_res3$p +theme_bw() + labs(x = "Standardized Differences in Means",
+                                shape = "Type",
+                                title = "Balance appears to be good, differences in acceptable range")
+```
+
+```{r}
+#| label: print-tbl-three
+df_treated_3<-match_res3$datatemp[match_res3$treated.subject.index,]
+df_control_3<-match_res3$datatemp[match_res3$matched.control.subject.index,]
+df_matched_3<-rbind(df_treated_3,df_control_3)
+
+tbl3 <- CreateTableOne(vars=names(filtered_data)[-c(1:2)],strata="physically.inactive",data=df_matched_3)
+
+print(tbl3,showAllLevels = TRUE,smd=FALSE,quote=FALSE, noSpaces = TRUE, printToggle = TRUE) %>% 
+  as.data.frame() %>% 
+  filter(p != "") %>% 
+  rownames_to_column() %>% 
+  filter(rowname %in% c("sex....", "age.at.interview..mean..SD..","smoking.status....")) %>% 
+  mutate(rowname = c("sex","smoking","age_at_interview")) %>% 
+  dplyr::select(rowname, level, "FALSE", "TRUE", p)
+
+```
+
+Balance has gotten bad now; not only are most of them greater in magnitude in .1, but one of them is greater in magnitude .2. There is not a good balance anymore. T-test for differences
+are significant. 
 
 #5
 
-```{r}
-
-```
+best matching; first one
 
 #6
 
+```{r}
+#| label: wilcoxon_confint
+library(exactRankTests)
+wilcox.exact(df_treated$years.lived.since.1971.up.to.1992,
+df_control$years.lived.since.1971.up.to.1992,
+paired=TRUE,conf.int=TRUE,exact = TRUE)
+```
+
+```{r}
+#| label: estimate
+matched.reg.model=lm(years.lived.since.1971.up.to.1992~physically.inactive
+                     +matchvec
++sex
++smoking.status
++income.poverty.ratio
++age.at.interview
++race
++education
++working.last.three.months
++married
++alcohol.consumption
++dietary.adequacy
++missing_ipr
++missing_diet_adeq,data=df_matched)
+
+coefficient_tbl <- c(coef(matched.reg.model)[2], confint(matched.reg.model)[2,]) %>% 
+  as.data.frame() %>% 
+  rownames_to_column() %>% 
+  pivot_wider(names_from = rowname, values_from = ".") %>% 
+  rename(estimate = physically.inactiveTRUE,
+         lower_int_2.5 = `2.5 %`,
+         upper_int_97.5 = `97.5 %`) %>% 
+  as.data.frame()
+
+rownames(coefficient_tbl) <- "physically.inactive"
+
+coefficient_tbl
+```
+
+later: add best one from q5
+
 #7
+
+interpretation q
 
 #8
 
+```{r}
+
+#| label: find-gamma
+diff=df_treated$years.lived.since.1971.up.to.1992-
+df_control$years.lived.since.1971.up.to.1992
+
+library(DOS)
+
+senWilcox(diff, gamma = 1, conf.int = FALSE, alpha = 0.05, alternative = "less")
+senWilcox(diff, gamma = 1.6, conf.int = FALSE, alpha = 0.05, alternative = "less")
+senWilcox(diff, gamma = 1.997, conf.int = FALSE, alpha = 0.05, alternative = "less")
+```
+
 #9
 
+```{r}
+#| label: outcome-reg
+library(CausalGAM)
+library(ebal)
+```
+
 #10
+
+```{r}
+#| label: sensitivity-analysis
+
+library(devtools)
+install_github("qingyuanzhao/bootsens")
+library(bootsens)
+```
+
+```{r}
+#| label: sensitivity-analysis-2
+# ipw
+A<-data$physically.inactive
+X<-model.matrix(glm(ps.formula,family=binomial,data=data))
+X<-X[,-1]
+Y<-data$years.lived.since.1971.up.to.1992
+## IPW, assuming no unmeasure confounder (i.e. gamma = 0 or Gamma = e^0 = 1)
+extrema.os(A, X, Y) # point estimate
+bootsens.os(A, X, Y, parallel = FALSE) # bootstrap confidence interval (CI)
+## IPW, Sensitivity analysis (gamma = log(1.2), i.e. Gamma = 1.2)
+extrema.os(A, X, Y, gamma = log(1.2)) # point estimate
+bootsens.os(A, X, Y, gamma = log(1.2), parallel = FALSE) # bootstrap CI
+# the IPW estimator is robust to Gamma=1.2
+## AIPW, assuming no unmeasure confounder (i.e. gamma = 0 or Gamma = e^0 = 1)
+extrema.os(A, X, Y, reg.adjust = TRUE) # point estimate
+bootsens.os(A, X, Y, reg.adjust = TRUE, parallel = FALSE) # bootstrap CI
+## AIPW, Sensitivity analysis (Gamma = exp(gamma))
+extrema.os(A, X, Y, reg.adjust = TRUE,gamma = log(1.2)) # point estimate
+bootsens.os(A, X, Y, reg.adjust = TRUE, gamma = log(1.2),parallel = FALSE) # bootstrap CI
+bootsens.os(A, X, Y, reg.adjust = TRUE, gamma = log(1.4),parallel = FALSE) # bootstrap CI
+# AIPW is robust to Gamma=1.4, because it has higher power compared to the IPW
+```
